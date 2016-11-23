@@ -23,7 +23,7 @@ public class PodTemplateStepExecution extends AbstractStepExecutionImpl {
 
     private static final long serialVersionUID = -6139090518333729333L;
 
-    private static final transient String NAME_FORMAT = "kubernetes-%s";
+    private static final transient String NAME_FORMAT = "%s-%s";
 
     private static final String DEFAULT_JNLP_IMAGE = System
             .getProperty(PodTemplateStepExecution.class.getName() + ".defaultImage", "jenkinsci/jnlp-slave:alpine");
@@ -39,7 +39,13 @@ public class PodTemplateStepExecution extends AbstractStepExecutionImpl {
             KubernetesCloud kubernetesCloud = (KubernetesCloud) cloud;
 
             PodTemplate newTemplate;
-            String name = String.format(NAME_FORMAT, UUID.randomUUID().toString().replaceAll("-", ""));
+            String _name = step.getName();
+            String name;
+            if (_name.equals("")) {
+                name = String.format(NAME_FORMAT, "kubernetes", UUID.randomUUID().toString().replaceAll("-", ""));
+            } else {
+                name = String.format(NAME_FORMAT, _name, UUID.randomUUID().toString().replaceAll("-", ""));
+            }
 
             PodTemplate podTemplate = StringUtils.isBlank(step.getInheritFrom())
                     ? null
@@ -62,6 +68,7 @@ public class PodTemplateStepExecution extends AbstractStepExecutionImpl {
 
             newTemplate.setLabel(step.getLabel());
             newTemplate.setName(name);
+            newTemplate.setAlive(step.getAlive());
             newTemplate.setNodeSelector(step.getNodeSelector());
             newTemplate.setServiceAccount(step.getServiceAccount());
 

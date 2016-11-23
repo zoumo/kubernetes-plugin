@@ -35,6 +35,8 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     private String name;
 
+    private boolean alive = false;
+
     private transient String image;
 
     private transient boolean privileged;
@@ -123,6 +125,15 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     public String getName() {
         return name;
+    }
+
+    @DataBoundSetter
+    public void setAlive(boolean alive) {
+        this.alive = alive;
+    }
+
+    public boolean getAlive() {
+        return alive;
     }
 
     @Deprecated
