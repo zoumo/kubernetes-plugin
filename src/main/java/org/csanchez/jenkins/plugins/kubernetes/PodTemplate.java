@@ -159,15 +159,6 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
         return name;
     }
 
-    @DataBoundSetter
-    public void setAlive(boolean alive) {
-        this.alive = alive;
-    }
-
-    public boolean getAlive() {
-        return alive;
-    }
-
     @Deprecated
     public String getImage() {
         return getFirstContainer().map(ContainerTemplate::getImage).orElse(null);
