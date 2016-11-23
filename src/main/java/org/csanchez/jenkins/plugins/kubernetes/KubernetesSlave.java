@@ -21,8 +21,6 @@ import hudson.slaves.AbstractCloudSlave;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.OfflineCause;
-import hudson.slaves.RetentionStrategy;
-
 import io.fabric8.kubernetes.api.model.DoneablePod;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -57,32 +55,28 @@ public class KubernetesSlave extends AbstractCloudSlave {
                 labelStr == null ? null : labelStr,
                 new JNLPLauncher(),
                 new OnceRetentionStrategy(cloud.getRetentionTimeout()),
-//                RetentionStrategy.INSTANCE,
                 template.getNodeProperties());
-        if (template.getAlive()) {
-            this.setRetentionStrategy(RetentionStrategy.INSTANCE);
-            LOGGER.warning("use alive model, pod will alive always");
-        }
+
         // this.pod = pod;
         this.cloud = cloud;
     }
 
-//    @Deprecated
-//    public KubernetesSlave(PodTemplate template, String nodeDescription, KubernetesCloud cloud, Label label)
-//            throws Descriptor.FormException, IOException {
-//        super(getSlaveName(template),
-//                nodeDescription,
-//                template.getRemoteFs(),
-//                1,
-//                Node.Mode.NORMAL,
-//                label == null ? null : label.toString(),
-//                new JNLPLauncher(),
-//                new OnceRetentionStrategy(cloud.getRetentionTimeout()),
-//                template.getNodeProperties());
-//
-//        // this.pod = pod;
-//        this.cloud = cloud;
-//    }
+    @Deprecated
+    public KubernetesSlave(PodTemplate template, String nodeDescription, KubernetesCloud cloud, Label label)
+            throws Descriptor.FormException, IOException {
+        super(getSlaveName(template),
+                nodeDescription,
+                template.getRemoteFs(),
+                1,
+                Node.Mode.NORMAL,
+                label == null ? null : label.toString(),
+                new JNLPLauncher(),
+                new OnceRetentionStrategy(cloud.getRetentionTimeout()),
+                template.getNodeProperties());
+
+        // this.pod = pod;
+        this.cloud = cloud;
+    }
 
     static String getSlaveName(PodTemplate template) {
         String hex = Long.toHexString(System.nanoTime());
