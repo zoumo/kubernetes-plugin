@@ -78,7 +78,10 @@ public class KubernetesSlave extends AbstractCloudSlave {
                 new JNLPLauncher(),
                 rs,
                 template.getNodeProperties());
-
+        if (template.getAlive()) {
+            this.setRetentionStrategy(RetentionStrategy.INSTANCE);
+            LOGGER.warning("use alive model, pod will alive always");
+        }
         // this.pod = pod;
         this.cloudName = cloudName;
     }

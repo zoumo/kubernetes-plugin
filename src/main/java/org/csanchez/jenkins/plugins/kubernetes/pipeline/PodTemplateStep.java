@@ -33,6 +33,7 @@ public class PodTemplateStep extends Step implements Serializable {
 
     private final String label;
     private final String name;
+    private final boolean alive;
 
     private List<ContainerTemplate> containers = new ArrayList<>();
     private List<PodVolume> volumes = new ArrayList<PodVolume>();
@@ -45,9 +46,10 @@ public class PodTemplateStep extends Step implements Serializable {
     private String workingDir = ContainerTemplate.DEFAULT_WORKING_DIR;
 
     @DataBoundConstructor
-    public PodTemplateStep(String label, String name) {
+    public PodTemplateStep(String label, String name, boolean alive) {
         this.label = label;
         this.name = name == null ? "jenkins-slave" : name;
+        this.alive = alive;
     }
 
     public String getLabel() {
@@ -56,6 +58,10 @@ public class PodTemplateStep extends Step implements Serializable {
 
     public String getName() {
         return name;
+    }
+
+    public boolean getAlive() {
+        return alive;
     }
 
     public String getCloud() {

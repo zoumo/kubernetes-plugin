@@ -50,6 +50,8 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
     private String name;
 
     private String image;
+    
+    private boolean alive = false;
 
     private boolean privileged;
 
@@ -155,6 +157,15 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
 
     public String getName() {
         return name;
+    }
+
+    @DataBoundSetter
+    public void setAlive(boolean alive) {
+        this.alive = alive;
+    }
+
+    public boolean getAlive() {
+        return alive;
     }
 
     @Deprecated
