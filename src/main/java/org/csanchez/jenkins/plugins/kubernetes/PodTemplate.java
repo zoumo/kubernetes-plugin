@@ -9,6 +9,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import hudson.util.QuotedStringTokenizer;
+import jenkins.model.Jenkins;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.PodVolume;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
@@ -35,8 +37,6 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     private String name;
 
-    private boolean alive = false;
-
     private transient String image;
 
     private transient boolean privileged;
@@ -52,6 +52,8 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
     private int instanceCap = Integer.MAX_VALUE;
 
     private String label;
+
+    private transient boolean always = false;
 
     private String serviceAccount;
 
@@ -125,15 +127,6 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     public String getName() {
         return name;
-    }
-
-    @DataBoundSetter
-    public void setAlive(boolean alive) {
-        this.alive = alive;
-    }
-
-    public boolean getAlive() {
-        return alive;
     }
 
     @Deprecated
@@ -210,6 +203,19 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
     @DataBoundSetter
     public void setLabel(String label) {
         this.label = label;
+        label = Util.fixNull(label);
+        if(label.length() > 0) {
+            String[] arr$ = (new QuotedStringTokenizer(label)).toArray();
+            for (String str : arr$) {
+                if (str.startsWith("always-") || str.startsWith("always_")) {
+                    this.always = true;
+                }
+            }
+        }
+    }
+
+    public boolean getAlways() {
+        return always;
     }
 
     public String getLabel() {
