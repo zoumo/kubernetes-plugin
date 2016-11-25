@@ -14,6 +14,7 @@ import java.util.logging.Logger;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang.StringUtils;
+import hudson.util.QuotedStringTokenizer;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.PodVolume;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.workspace.WorkspaceVolume;
 import org.kohsuke.accmod.Restricted;
@@ -70,6 +71,8 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
     private int idleMinutes;
 
     private String label;
+
+    private transient boolean always = false;
 
     private String serviceAccount;
 
@@ -292,6 +295,19 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
     @DataBoundSetter
     public void setLabel(String label) {
         this.label = label;
+        label = Util.fixNull(label);
+        if(label.length() > 0) {
+            String[] arr$ = (new QuotedStringTokenizer(label)).toArray();
+            for (String str : arr$) {
+                if (str.startsWith("always-") || str.startsWith("always_")) {
+                    this.always = true;
+                }
+            }
+        }
+    }
+
+    public boolean getAlways() {
+        return always;
     }
 
     public String getLabel() {
