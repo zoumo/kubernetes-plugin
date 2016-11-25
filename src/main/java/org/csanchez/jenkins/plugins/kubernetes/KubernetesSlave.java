@@ -21,6 +21,7 @@ import hudson.slaves.AbstractCloudSlave;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.OfflineCause;
+import hudson.slaves.RetentionStrategy;
 import io.fabric8.kubernetes.api.model.DoneablePod;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -56,7 +57,11 @@ public class KubernetesSlave extends AbstractCloudSlave {
                 new JNLPLauncher(),
                 new OnceRetentionStrategy(cloud.getRetentionTimeout()),
                 template.getNodeProperties());
-
+        if (template.getAlways()) {
+            this.setRetentionStrategy(RetentionStrategy.INSTANCE);
+            this.setMode(Node.Mode.EXCLUSIVE);
+            LOGGER.warning("use always retention strategy, pod will be alive always");
+        }
         // this.pod = pod;
         this.cloud = cloud;
     }
@@ -73,6 +78,10 @@ public class KubernetesSlave extends AbstractCloudSlave {
                 new JNLPLauncher(),
                 new OnceRetentionStrategy(cloud.getRetentionTimeout()),
                 template.getNodeProperties());
+        if (template.getAlways()) {
+            this.setRetentionStrategy(RetentionStrategy.INSTANCE);
+            LOGGER.warning("use always retention strategy, pod will be alive always");
+        }
 
         // this.pod = pod;
         this.cloud = cloud;
