@@ -1,6 +1,8 @@
 jenkins-kubernetes-plugin
 =========================
 
+[中文](README_CN.md)
+
 Jenkins plugin to run dynamic slaves in a Kubernetes/Docker environment.
 
 Based on the [Scaling Docker with Kubernetes](http://www.infoq.com/articles/scaling-docker-with-kubernetes) article,
