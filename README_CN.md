@@ -97,10 +97,12 @@ podTemplate(
 
 # Always alive pod
 只需要在podTemplate的中指定一个以`always-`或者`always_`开头的label, 插件会识别出这个pod是长期存在的pod, 改变jenkins slave的retentionStrategy改为always
+
 如`label: "always-java always-centos"`
 
 # Constraints
 如果你定义了多个Container的话, 其中一个必须是Jenkins JNLP slave, 参数args必须是`${computer.jnlpmac} ${computer.name}`, 它将作为jenkins agent
+
 其他的Container必须长期在前台运行, 不能运行一会就退出了. 如果image默认的entrypoint或者command仅仅运行了一会后就退出了, 那么你需要将它用长期运行的命令来替代它, 并且带上参数`ttyEnabled: true`
 
 # Debugging
@@ -145,6 +147,9 @@ Until Kubernetes 1.4 removes the SNATing of source ips, seems that CSRF (enabled
 
 ## Other
 Jenkins URL: 需要是以http开头的jenkins地址, 默认端口80
+
 Jenkins Tunnel: 不以http开头的jenkins地址, 用于slave访问master, 默认端口50000
+
 ContainerCap: k8s集群能够同时提供slave的个数
+
 Kubernetes server certificate key	: X509 PEM encoded, 不能有换行, 不能有头尾, 就是一个字符串
