@@ -80,6 +80,7 @@ public class KubernetesSlave extends AbstractCloudSlave {
                 template.getNodeProperties());
         if (template.getAlways()) {
             this.setRetentionStrategy(RetentionStrategy.INSTANCE);
+            this.setMode(Node.Mode.EXCLUSIVE);
             LOGGER.warning("use always retention strategy, pod will be alive always");
         }
 
