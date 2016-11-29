@@ -68,6 +68,7 @@ public class PodTemplateStepExecution extends AbstractStepExecutionImpl {
 
             newTemplate.setLabel(step.getLabel());
             newTemplate.setName(name);
+            newTemplate.setInstanceCap(step.getInstanceCap());
             newTemplate.setNodeSelector(step.getNodeSelector());
             newTemplate.setServiceAccount(step.getServiceAccount());
 
