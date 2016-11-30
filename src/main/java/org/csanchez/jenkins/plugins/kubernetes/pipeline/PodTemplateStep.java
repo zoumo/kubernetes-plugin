@@ -88,6 +88,7 @@ public class PodTemplateStep extends AbstractStepImpl implements Serializable {
         return instanceCap;
     }
 
+    @DataBoundSetter
     public void setInstanceCap(int instanceCap) {
         this.instanceCap = instanceCap;
     }
