@@ -29,6 +29,7 @@ public class PodTemplateStep extends AbstractStepImpl implements Serializable {
     private List<ContainerTemplate> containers = new ArrayList<>();
     private List<PodVolume> volumes = new ArrayList<PodVolume>();
 
+    private int instanceCap;
     private String serviceAccount;
     private String nodeSelector;
     private String workingDir = ContainerTemplate.DEFAULT_WORKING_DIR;
@@ -81,6 +82,15 @@ public class PodTemplateStep extends AbstractStepImpl implements Serializable {
     @DataBoundSetter
     public void setVolumes(List<PodVolume> volumes) {
         this.volumes = volumes;
+    }
+
+    public int getInstanceCap() {
+        return instanceCap;
+    }
+
+    @DataBoundSetter
+    public void setInstanceCap(int instanceCap) {
+        this.instanceCap = instanceCap;
     }
 
     public String getServiceAccount() {

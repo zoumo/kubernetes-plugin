@@ -1,11 +1,13 @@
 package org.csanchez.jenkins.plugins.kubernetes;
 
 import hudson.tools.ToolLocationNodeProperty;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
@@ -172,7 +174,11 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
     }
 
     public void setInstanceCap(int instanceCap) {
-        this.instanceCap = instanceCap;
+        if (instanceCap <= 0) {
+            this.instanceCap = Integer.MAX_VALUE;
+        } else {
+            this.instanceCap = instanceCap;
+        }
     }
 
     public int getInstanceCap() {
@@ -405,5 +411,19 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
         public String getDisplayName() {
             return "Kubernetes Pod Template";
         }
+    }
+
+    public String toString() {
+        HashMap<String, String> des = new HashMap<>();
+        des.put("name", this.getName());
+        des.put("instanceCap", String.valueOf(this.getInstanceCap()));
+        des.put("label", this.getLabel());
+        des.put("nodeSelector", this.getNodeSelector());
+        des.put("serviceAccount", this.getServiceAccount());
+        des.put("containerNum", String.valueOf(this.getContainers().size()));
+        des.put("volumeNum", String.valueOf(this.getVolumes().size()));
+        des.put("always", String.valueOf(this.getAlways()));
+
+        return des.toString();
     }
 }
