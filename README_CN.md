@@ -145,6 +145,16 @@ Until Kubernetes 1.4 removes the SNATing of source ips, seems that CSRF (enabled
 - Kubernetes api username and password
 - OpenShift OAuth token (推荐)
 
+## NodeProvisioner Strategy
+
+Jenkins默认使用hudson.slaves.NodeProvisioner.StandardStrategyImpl, 作为Node创建的调度策略
+
+这个策略会经过一系列复杂的统计和计算来确定是否要新建节点 [Why?](https://support.cloudbees.com/hc/en-us/articles/204690520-Why-do-slaves-show-as-suspended-while-jobs-wait-in-the-queue-), 如果你不需要这么复杂的策略, 可以
+
+勾选下面这个策略, 它提供了一个asap provision的策略来提供node
+
+`Manage Jenkins -> Configure System -> cloud -> Use kubernetes provisioning strategy	`
+
 ## Other
 Jenkins URL: 需要是以http开头的jenkins地址, 默认端口80
 
