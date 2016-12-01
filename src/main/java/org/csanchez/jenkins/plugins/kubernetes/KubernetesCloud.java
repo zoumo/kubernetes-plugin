@@ -202,7 +202,6 @@ public class KubernetesCloud extends Cloud {
                 }
             }
             return podTemplates;
-
         }
     }
 
