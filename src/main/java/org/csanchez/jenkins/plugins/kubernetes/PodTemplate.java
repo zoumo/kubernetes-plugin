@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
@@ -532,5 +533,19 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
         public String getDisplayName() {
             return "Kubernetes Pod Template";
         }
+    }
+
+    public String toString() {
+        HashMap<String, String> des = new HashMap<>();
+        des.put("name", this.getName());
+        des.put("instanceCap", String.valueOf(this.getInstanceCap()));
+        des.put("label", this.getLabel());
+        des.put("nodeSelector", this.getNodeSelector());
+        des.put("serviceAccount", this.getServiceAccount());
+        des.put("containerNum", String.valueOf(this.getContainers().size()));
+        des.put("volumeNum", String.valueOf(this.getVolumes().size()));
+        des.put("always", String.valueOf(this.getAlways()));
+
+        return des.toString();
     }
 }

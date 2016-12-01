@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import hudson.ExtensionList;
 import org.apache.commons.lang.StringUtils;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.PodVolume;
 import org.csanchez.jenkins.plugins.kubernetes.pipeline.PodTemplateStepExecution;
@@ -82,6 +83,10 @@ import io.fabric8.kubernetes.client.dsl.PrettyLoggable;
 import jenkins.model.Jenkins;
 import jenkins.model.JenkinsLocationConfiguration;
 
+import static hudson.ExtensionList.lookup;
+import static java.util.Objects.isNull;
+
+
 /**
  * Kubernetes cloud provider.
  * 
@@ -120,6 +125,7 @@ public class KubernetesCloud extends Cloud {
     private String serverCertificate;
 
     private boolean skipTlsVerify;
+    private boolean enableK8SProvisioningStrategy;
 
     private String namespace;
     private String jenkinsUrl;
@@ -159,6 +165,10 @@ public class KubernetesCloud extends Cloud {
 
     }
 
+    public String getName() {
+        return this.name;
+    }
+
     public int getRetentionTimeout() {
         return retentionTimeout;
     }
@@ -179,6 +189,21 @@ public class KubernetesCloud extends Cloud {
 
     public List<PodTemplate> getTemplates() {
         return templates;
+    }
+
+    public List<PodTemplate> getTemplates(Label label) {
+        if (label == null) {
+            return templates;
+        } else {
+            List<PodTemplate> podTemplates = new ArrayList<>();
+            for (PodTemplate t: templates) {
+                if (label.matches(t.getLabelSet())) {
+                    podTemplates.add(t);
+                }
+            }
+            return podTemplates;
+
+        }
     }
 
     @DataBoundSetter
@@ -212,6 +237,35 @@ public class KubernetesCloud extends Cloud {
     @DataBoundSetter
     public void setSkipTlsVerify(boolean skipTlsVerify) {
         this.skipTlsVerify = skipTlsVerify;
+    }
+
+    public boolean getEnableK8SProvisioningStrategy() {
+        return enableK8SProvisioningStrategy;
+    }
+
+    @DataBoundSetter
+    public void setEnableK8SProvisioningStrategy(boolean enableK8SProvisioningStrategy) {
+
+        this.enableK8SProvisioningStrategy = enableK8SProvisioningStrategy;
+        final ExtensionList<NodeProvisioner.Strategy> strategies = lookup(NodeProvisioner.Strategy.class);
+        KubernetesProvisioningStrategy strategy = strategies.get(KubernetesProvisioningStrategy.class);
+
+        if (enableK8SProvisioningStrategy) {
+            if (isNull(strategy)) {
+                strategy = new KubernetesProvisioningStrategy();
+            } else {
+                // make it be first
+                strategies.remove(strategy);
+            }
+            strategies.add(0, strategy);
+            LOGGER.info("enable KubernetesPorvisioningStrategy");
+        } else {
+            if (!isNull(strategy)) {
+                strategies.remove(strategy);
+            }
+            LOGGER.info("remove KubernetesPorvisioningStrategy");
+
+        }
     }
 
     @CheckForNull

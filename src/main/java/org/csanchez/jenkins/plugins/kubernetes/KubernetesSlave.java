@@ -1,6 +1,7 @@
 package org.csanchez.jenkins.plugins.kubernetes;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -49,6 +50,18 @@ public class KubernetesSlave extends AbstractCloudSlave {
             throws Descriptor.FormException, IOException {
 
         this(template, nodeDescription, cloud, labelStr, new OnceRetentionStrategy(cloud.getRetentionTimeout()));
+    }
+
+    public String getDescription() {
+        HashMap<String, String> des = new HashMap<>();
+        des.put("name", this.name);
+        des.put("nodeDescription", this.getNodeDescription());
+        des.put("remoteFs", this.getRemoteFS());
+        des.put("executors", String.valueOf(this.getNumExecutors()));
+        des.put("mode", this.getMode().getName());
+        des.put("label", this.getLabelString());
+        des.put("retentionStrategy", this.getRetentionStrategy().getClass().getName());
+        return des.toString();
     }
 
     @Deprecated
