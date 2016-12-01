@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import hudson.ExtensionList;
 import org.apache.commons.lang.StringUtils;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.PodVolume;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -70,6 +71,10 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import jenkins.model.Jenkins;
 import jenkins.model.JenkinsLocationConfiguration;
 
+import static hudson.ExtensionList.lookup;
+import static java.util.Objects.isNull;
+
+
 /**
  * Kubernetes cloud provider.
  * 
@@ -100,6 +105,7 @@ public class KubernetesCloud extends Cloud {
     private String serverCertificate;
 
     private boolean skipTlsVerify;
+    private boolean enableK8SProvisioningStrategy;
 
     private String namespace;
     private String jenkinsUrl;
@@ -139,6 +145,10 @@ public class KubernetesCloud extends Cloud {
 
     }
 
+    public String getName() {
+        return this.name;
+    }
+
     public int getRetentionTimeout() {
         return retentionTimeout;
     }
@@ -150,6 +160,21 @@ public class KubernetesCloud extends Cloud {
 
     public List<PodTemplate> getTemplates() {
         return templates;
+    }
+
+    public List<PodTemplate> getTemplates(Label label) {
+        if (label == null) {
+            return templates;
+        } else {
+            List<PodTemplate> podTemplates = new ArrayList<>();
+            for (PodTemplate t: templates) {
+                if (label.matches(t.getLabelSet())) {
+                    podTemplates.add(t);
+                }
+            }
+            return podTemplates;
+
+        }
     }
 
     @DataBoundSetter
@@ -183,6 +208,35 @@ public class KubernetesCloud extends Cloud {
     @DataBoundSetter
     public void setSkipTlsVerify(boolean skipTlsVerify) {
         this.skipTlsVerify = skipTlsVerify;
+    }
+
+    public boolean getEnableK8SProvisioningStrategy() {
+        return enableK8SProvisioningStrategy;
+    }
+
+    @DataBoundSetter
+    public void setEnableK8SProvisioningStrategy(boolean enableK8SProvisioningStrategy) {
+
+        this.enableK8SProvisioningStrategy = enableK8SProvisioningStrategy;
+        final ExtensionList<NodeProvisioner.Strategy> strategies = lookup(NodeProvisioner.Strategy.class);
+        KubernetesProvisioningStrategy strategy = strategies.get(KubernetesProvisioningStrategy.class);
+
+        if (enableK8SProvisioningStrategy) {
+            if (isNull(strategy)) {
+                strategy = new KubernetesProvisioningStrategy();
+            } else {
+                // make it be first
+                strategies.remove(strategy);
+            }
+            strategies.add(0, strategy);
+            LOGGER.info("enable KubernetesPorvisioningStrategy");
+        } else {
+            if (!isNull(strategy)) {
+                strategies.remove(strategy);
+            }
+            LOGGER.info("remove KubernetesPorvisioningStrategy");
+
+        }
     }
 
     @CheckForNull
@@ -515,8 +569,11 @@ public class KubernetesCloud extends Cloud {
         public Node call() throws Exception {
             KubernetesSlave slave = null;
             try {
+                LOGGER.log(Level.INFO, "use potTemplate {0}", t.toString());
 
                 slave = new KubernetesSlave(t, t.getName(), cloud, t.getLabel());
+                LOGGER.log(Level.INFO, "new kubernetes slave {0}", slave.getDescription());
+
                 Jenkins.getActiveInstance().addNode(slave);
 
                 Pod pod = getPodTemplate(slave, label);
@@ -614,13 +671,13 @@ public class KubernetesCloud extends Cloud {
         PodList namedList = client.pods().withLabels(labelsMap).list();
         List<Pod> namedListItems = namedList.getItems();
 
-        if (slaveListItems != null && containerCap < slaveListItems.size()) {
+        if (slaveListItems != null && containerCap <= slaveListItems.size()) {
             LOGGER.log(Level.INFO, "Total container cap of {0} reached, not provisioning: {1} running in namespace {2}",
                     new Object[] { containerCap, slaveListItems.size(), client.getNamespace() });
             return false;
         }
 
-        if (namedListItems != null && slaveListItems != null && template.getInstanceCap() < namedListItems.size()) {
+        if (namedListItems != null && slaveListItems != null && template.getInstanceCap() <= namedListItems.size()) {
             LOGGER.log(Level.INFO,
                     "Template instance cap of {0} reached for template {1}, not provisioning: {2} running in namespace {3} with label {4}",
                     new Object[] { template.getInstanceCap(), template.getName(), slaveListItems.size(),
