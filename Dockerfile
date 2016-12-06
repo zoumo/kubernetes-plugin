@@ -1,13 +1,14 @@
-FROM jenkins
+FROM jenkins:2.19.4-alpine
 
-RUN /usr/local/bin/install-plugins.sh kubernetes:0.11
+USER root
 
-# ENV VERSION 0.4-SNAPSHOT
-# COPY target/kubernetes.hpi /usr/share/jenkins/ref/plugins/kubernetes.hpi
-# RUN curl -o /usr/share/jenkins/ref/plugins/kubernetes.hpi \
-#  http://repo.jenkins-ci.org/snapshots/org/csanchez/jenkins/plugins/kubernetes/0.4/kubernetes-$VERSION.hpi
+COPY install-plugins.sh /usr/local/bin/install-plugins.sh
 
-# remove executors in master
+USER jenkins
+
+ENV VERSION 0.11.1
+
+RUN curl -fSL https://github.com/caicloud/kubernetes-plugin/releases/download/kubernetes-${VERSION}/kubernetes.hpi -o ${JENKINS_HOME}/kubernetes.hpi && \
+    install-plugins.sh ${JENKINS_HOME}/kubernetes.hpi
+
 COPY src/main/docker/master-executors.groovy /usr/share/jenkins/ref/init.groovy.d/
-
-# ENV JAVA_OPTS="-Djava.util.logging.config.file=/var/jenkins_home/log.properties"
