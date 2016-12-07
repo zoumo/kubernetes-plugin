@@ -53,7 +53,7 @@ items:
         spec: 
           containers: 
             - name: "jenkins"
-              image: "jenkins:2.19.4-alpine"
+              image: "cargo.caicloud.io/circle/jenkins-k8s:2.19.4-alpine"
               ports: 
                 - containerPort: 8080
                 - containerPort: 50000
