@@ -114,38 +114,39 @@ run `mvn clean pacjages`
 
 # Jenkins Master with plugin
 
-### Docker image
+### Running in docker
 
 #### Build
 
-```
+```bash
+# 或者使用我们已经构建好的镜像 cargo.caicloud.io/circle/jenkins-k8s:2.19.4-alpine
 docker build -t "jenkins-k8s" .
 ```
 
 #### Running
 
-可以在 docker 中运行 jenkins with plugin, 下面这个image已经安装了插件 基于官方 [official image](https://hub.docker.com/_/jenkins/)
+可以在 docker 中运行 Jenkins with plugin, 下面这个image已经安装了插件 基于官方 [official image](https://hub.docker.com/_/jenkins/)
 
-```sh
+```bash
 mkdir jenkins_home
-docker run --rm --name jenkins -p 8080:8080 -p 50000:50000 -v $PWD/jenkins_home:/var/jenkins_home cargo.caicloud.io/circle/jenkins-k8s:2.19.4-alpine
+docker run --name jenkins -p 8080:8080 -p 50000:50000 -v $PWD/jenkins_home:/var/jenkins_home jenkins-k8s
 ```
 
-### Running in Minikube
+### Running in minikube
 
 在本地可以使用 [minikube](https://github.com/kubernetes/minikube) 启动一个单节点的 kubernetes 集群
 
-```sh
+```bash
 minikube start
 ```
 
 >   // minikube 有个小问题, PersistentVolume 中使用 hostPath 创建的目录权限是0755, 这使得 docker 没有权限操作这个目录
 >   // 需要手动修改目录的权限
 >
->   ```
+>   ```bash
 >   minikube ssh
 >
->   // in minikube vm
+>   # in minikube vm
 >
 >   sudo mkdir -m 0777 -p /data/kubernetes-plugin-jenkins
 >   ```
@@ -156,13 +157,13 @@ minikube start
 kubectl create -f ./src/main/kubernetes/minikube.yml
 kubectl config set-context $(kubectl config current-context) --namespace=kubernetes-plugin
 
-// 映射jenkins master的service到本机
+# 映射jenkins master的service到本机
 minikube service jenkins --namespace=kubernetes-plugin
 ```
 
 ### Running in kubernetes
 
-如果你有自己的kubernetes集群的话, 则需要修改 `./src/main/kubernetes/minikube.yml` , 将其中 `PersistentVolume` 中的 `hostPath` 改成集群中实际使用的方式如 `nfs`, 然后再
+如果你有自己的kubernetes集群的话, 则需要修改 `./src/main/kubernetes/minikube.yml` , 将其中 `PersistentVolume` 中的 `hostPath` 改成集群中实际使用的volume挂载方式方式如 `nfs`, 然后再执行下面的命令:
 
 ```
 kubectl create -f ./src/main/kubernetes/minikube.yml
@@ -171,7 +172,8 @@ kubectl config set-context $(kubectl config current-context) --namespace=kuberne
 
 ## Jenkins jnlp slave
 
-```
+```bash
+# 构建
 docker buil	-t "jnlp-slave" ./src/main/jnlp-slave
 ```
 
@@ -192,7 +194,7 @@ Until Kubernetes 1.4 removes the SNATing of source ips, seems that CSRF (enabled
 
 ## NodeProvisioner Strategy
 
-Jenkins 默认使用 hudson.slaves.NodeProvisioner.StandardStrategyImpl, 作为 Node 创建的调度策略
+Jenkins 默认使用 Hudson.slaves.NodeProvisioner.StandardStrategyImpl, 作为 Node 创建的调度策略
 
 这个策略会经过一系列复杂的统计和计算来确定是否要新建节点 [Why?](https://support.cloudbees.com/hc/en-us/articles/204690520-Why-do-slaves-show-as-suspended-while-jobs-wait-in-the-queue-), 如果你不需要这么复杂的策略, 可以
 
@@ -201,9 +203,9 @@ Jenkins 默认使用 hudson.slaves.NodeProvisioner.StandardStrategyImpl, 作为 
 `Manage Jenkins -> Configure System -> cloud -> Use kubernetes provisioning strategy	`
 
 ## Other
-Jenkins URL: 需要是以 http 开头的 jenkins 地址, 默认端口80
+Jenkins URL: 需要是以 http 开头的 Jenkins 地址, 默认端口80
 
-Jenkins Tunnel: 不以 http 开头的 jenkins 地址, 用于 slave 访问 master, 默认端口50000
+Jenkins Tunnel: 不以 http 开头的 Jenkins 地址, 用于 slave 访问 master, 默认端口50000
 
 ContainerCap: k8s 集群能够同时提供 slave 的个数
 
