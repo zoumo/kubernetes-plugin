@@ -36,6 +36,7 @@ RUN apk add --update --no-cache bash git \
   && chmod 644 /usr/share/jenkins/slave.jar
 
 COPY jenkins-slave /usr/local/bin/jenkins-slave
+COPY kubectl  /usr/local/bin/kubectl
 
 USER jenkins
 RUN mkdir -p /home/jenkins/.jenkins
