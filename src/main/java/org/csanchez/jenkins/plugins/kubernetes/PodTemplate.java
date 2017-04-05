@@ -2,18 +2,23 @@ package org.csanchez.jenkins.plugins.kubernetes;
 
 import hudson.tools.ToolLocationNodeProperty;
 
+import java.io.Serializable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
 import hudson.util.QuotedStringTokenizer;
-import jenkins.model.Jenkins;
 import org.csanchez.jenkins.plugins.kubernetes.volumes.PodVolume;
+import org.csanchez.jenkins.plugins.kubernetes.volumes.workspace.WorkspaceVolume;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -33,25 +38,37 @@ import hudson.model.labels.LabelAtom;
  * 
  * @author <a href="mailto:nicolas.deloof@gmail.com">Nicolas De Loof</a>
  */
-public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
+public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements Serializable {
+
+    private static final long serialVersionUID = 3285310269140845583L;
 
     private static final String FALLBACK_ARGUMENTS = "${computer.jnlpmac} ${computer.name}";
 
+    private static final Logger LOGGER = Logger.getLogger(PodTemplate.class.getName());
+
+    private static final int DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT = 100;
+
+    private String inheritFrom;
+
     private String name;
 
-    private transient String image;
+    private String image;
+    
+    private boolean privileged;
 
-    private transient boolean privileged;
+    private boolean alwaysPullImage;
 
-    private transient boolean alwaysPullImage;
+    private String command;
 
-    private transient String command;
+    private String args;
 
-    private transient String args;
-
-    private transient String remoteFs;
+    private String remoteFs;
 
     private int instanceCap = Integer.MAX_VALUE;
+
+    private int slaveConnectTimeout = DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT;
+
+    private int idleMinutes;
 
     private String label;
 
@@ -61,26 +78,28 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     private String nodeSelector;
 
-    private transient String resourceRequestCpu;
+    private String resourceRequestCpu;
 
-    private transient String resourceRequestMemory;
+    private String resourceRequestMemory;
 
-    private transient String resourceLimitCpu;
+    private String resourceLimitCpu;
 
-    private transient String resourceLimitMemory;
+    private String resourceLimitMemory;
+
+    private boolean customWorkspaceVolumeEnabled;
+    private WorkspaceVolume workspaceVolume;
 
     private final List<PodVolume> volumes = new ArrayList<PodVolume>();
 
     private List<ContainerTemplate> containers = new ArrayList<ContainerTemplate>();
 
-    @SuppressWarnings("deprecation")
-    private transient final List<PodEnvVar> envVars = new ArrayList<PodEnvVar>();
+    private final List<PodEnvVar> envVars = new ArrayList<PodEnvVar>();
 
-    private final List<PodAnnotation> annotations = new ArrayList<PodAnnotation>();
+    private List<PodAnnotation> annotations = new ArrayList<PodAnnotation>();
 
     private final List<PodImagePullSecret> imagePullSecrets = new ArrayList<PodImagePullSecret>();
 
-    private List<ToolLocationNodeProperty> nodeProperties;
+    private transient List<ToolLocationNodeProperty> nodeProperties;
 
     @DataBoundConstructor
     public PodTemplate() {
@@ -93,9 +112,12 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
         this.setInstanceCap(from.getInstanceCap());
         this.setLabel(from.getLabel());
         this.setName(from.getName());
+        this.setInheritFrom(from.getInheritFrom());
         this.setNodeSelector(from.getNodeSelector());
         this.setServiceAccount(from.getServiceAccount());
+        this.setSlaveConnectTimeout(from.getSlaveConnectTimeout());
         this.setVolumes(from.getVolumes());
+        this.setWorkspaceVolume(from.getWorkspaceVolume());
     }
 
     @Deprecated
@@ -120,6 +142,15 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     private Optional<ContainerTemplate> getFirstContainer() {
         return Optional.ofNullable(getContainers().isEmpty() ? null : getContainers().get(0));
+    }
+
+    public String getInheritFrom() {
+        return inheritFrom;
+    }
+
+    @DataBoundSetter
+    public void setInheritFrom(String inheritFrom) {
+        this.inheritFrom = inheritFrom;
     }
 
     @DataBoundSetter
@@ -185,9 +216,26 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
         return instanceCap;
     }
 
+    public void setSlaveConnectTimeout(int slaveConnectTimeout) {
+        if (slaveConnectTimeout <= 0) {
+            LOGGER.log(Level.WARNING, "Slave -> Jenkins connection timeout " +
+                    "cannot be <= 0. Falling back to the default value: " +
+                    DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT);
+            this.slaveConnectTimeout = DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT;
+        } else {
+            this.slaveConnectTimeout = slaveConnectTimeout;
+        }
+    }
+
+    public int getSlaveConnectTimeout() {
+        if (slaveConnectTimeout == 0)
+            return DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT;
+        return slaveConnectTimeout;
+    }
+
     @DataBoundSetter
     public void setInstanceCapStr(String instanceCapStr) {
-        if ("".equals(instanceCapStr)) {
+        if (StringUtils.isBlank(instanceCapStr)) {
             setInstanceCap(Integer.MAX_VALUE);
         } else {
             setInstanceCap(Integer.parseInt(instanceCapStr));
@@ -199,6 +247,44 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
             return "";
         } else {
             return String.valueOf(instanceCap);
+        }
+    }
+
+    @DataBoundSetter
+    public void setSlaveConnectTimeoutStr(String slaveConnectTimeoutStr) {
+        if (StringUtils.isBlank(slaveConnectTimeoutStr)) {
+            setSlaveConnectTimeout(DEFAULT_SLAVE_JENKINS_CONNECTION_TIMEOUT);
+        } else {
+            setSlaveConnectTimeout(Integer.parseInt(slaveConnectTimeoutStr));
+        }
+    }
+
+    public String getSlaveConnectTimeoutStr() {
+        return String.valueOf(slaveConnectTimeout);
+    }
+
+    public void setIdleMinutes(int i) {
+        this.idleMinutes = i;
+    }
+
+    public int getIdleMinutes() {
+        return idleMinutes;
+    }
+
+    @DataBoundSetter
+    public void setIdleMinutesStr(String idleMinutes) {
+        if (StringUtils.isBlank(idleMinutes)) {
+            setIdleMinutes(0);
+        } else {
+            setIdleMinutes(Integer.parseInt(idleMinutes));
+        }
+    }
+
+    public String getIdleMinutesStr() {
+        if (getIdleMinutes() == 0) {
+            return "";
+        } else {
+            return String.valueOf(idleMinutes);
         }
     }
 
@@ -268,21 +354,24 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
         return getFirstContainer().map(ContainerTemplate::isAlwaysPullImage).orElse(false);
     }
 
-    @Deprecated
-    @SuppressWarnings("deprecation")
     public List<PodEnvVar> getEnvVars() {
-        return getFirstContainer().map((i) -> PodEnvVar.fromContainerEnvVar(i.getEnvVars()))
-                .orElse(Collections.emptyList());
+        if (envVars == null) {
+            return Collections.emptyList();
+        }
+        return envVars;
     }
 
-    @Deprecated
-    @SuppressWarnings("deprecation")
     @DataBoundSetter
     public void setEnvVars(List<PodEnvVar> envVars) {
-        getFirstContainer().ifPresent((i) -> i.setEnvVars(PodEnvVar.asContainerEnvVar(envVars)));
+        if (envVars != null) {
+            this.envVars.addAll(envVars);
+        }
     }
 
     public List<PodAnnotation> getAnnotations() {
+        if (annotations == null) {
+            return Collections.emptyList();
+        }
         return annotations;
     }
 
@@ -292,6 +381,9 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
     }
 
     public List<PodImagePullSecret> getImagePullSecrets() {
+        if (imagePullSecrets == null) {
+            return Collections.emptyList();
+        }
         return imagePullSecrets;
     }
 
@@ -367,7 +459,28 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     @Nonnull
     public List<PodVolume> getVolumes() {
+        if (volumes == null) {
+            return Collections.emptyList();
+        }
         return volumes;
+    }
+
+    public boolean isCustomWorkspaceVolumeEnabled() {
+        return customWorkspaceVolumeEnabled;
+    }
+
+    @DataBoundSetter
+    public void setCustomWorkspaceVolumeEnabled(boolean customWorkspaceVolumeEnabled) {
+        this.customWorkspaceVolumeEnabled = customWorkspaceVolumeEnabled;
+    }
+
+    public WorkspaceVolume getWorkspaceVolume() {
+        return workspaceVolume;
+    }
+
+    @DataBoundSetter
+    public void setWorkspaceVolume(WorkspaceVolume workspaceVolume) {
+        this.workspaceVolume = workspaceVolume;
     }
 
     @DataBoundSetter
@@ -380,6 +493,9 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
 
     @Nonnull
     public List<ContainerTemplate> getContainers() {
+        if (containers == null) {
+            return Collections.emptyList();
+        }
         return containers;
     }
 
@@ -388,7 +504,7 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
         if (containers == null) {
             // upgrading from 0.8
             containers = new ArrayList<ContainerTemplate>();
-            ContainerTemplate containerTemplate = new ContainerTemplate(this.name, this.image);
+            ContainerTemplate containerTemplate = new ContainerTemplate(KubernetesCloud.JNLP_NAME, this.image);
             containerTemplate.setCommand(command);
             containerTemplate.setArgs(Strings.isNullOrEmpty(args) ? FALLBACK_ARGUMENTS : args);
             containerTemplate.setPrivileged(privileged);
@@ -401,6 +517,11 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> {
             containerTemplate.setWorkingDir(remoteFs);
             containers.add(containerTemplate);
         }
+
+        if (annotations == null) {
+            annotations = new ArrayList<>();
+        }
+
         return this;
     }
 

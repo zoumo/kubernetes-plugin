@@ -13,9 +13,18 @@
     <f:textbox/>
   </f:entry>
 
+  <f:entry field="inheritFrom" title="The name of the pod template to inherit from">
+    <f:textbox/>
+  </f:entry>
+
   <f:entry title="${%Containers}" description="${%List of container in the slave pod}">
-      <f:repeatableProperty field="containers" hasHeader="true" addCaption="Add Container"
+      <f:repeatableHeteroProperty field="containers" hasHeader="true" addCaption="Add Container"
                                     deleteCaption="Delete Container" />
+  </f:entry>
+
+  <f:entry title="${%EnvVars}" description="${%List of environment variables to set in all container of the pod}">
+        <f:repeatableHeteroProperty field="envVars" hasHeader="true" addCaption="Add Environment Variable"
+                                    deleteCaption="Delete Environment Variable" />
   </f:entry>
 
   <f:entry title="${%Volumes}" description="${%List of volumes to mount in slave pod}">
@@ -27,7 +36,15 @@
     <f:textbox/>
   </f:entry>
 
-    <f:entry title="${%Annotations}" description="${%List of annotations to set in slave pod}">
+  <f:entry field="idleMinutesStr" title="${%Time in minutes to retain slave when idle}">
+    <f:textbox/>
+  </f:entry>
+
+  <f:entry field="slaveConnectTimeoutStr" title="${%Timeout in seconds for Jenkins connection}">
+    <f:textbox/>
+  </f:entry>
+
+    <f:entry title="${%Annotations}" description="${%List of annotations to set in slave pod}" field="annotations">
       <f:repeatableHeteroProperty field="annotations" hasHeader="true" addCaption="Add Annotation"
                                   deleteCaption="Delete annotation Variable" />
     </f:entry>
@@ -49,7 +66,16 @@
     </f:entry>
 
     <f:descriptorList title="${%Node Properties}" descriptors="${h.getNodePropertyDescriptors(descriptor.clazz)}" field="nodeProperties" />
-
+    <f:block>
+      <table>
+        <f:optionalBlock title="${%Use custom workspace volume}" field="customWorkspaceVolumeEnabled" inline="true">
+          <f:entry title="${%Workspace Volume}" description="${%Volume to use for sharing the workspace}">
+            <f:dropdownDescriptorSelector field="workspaceVolume" oneEach="true" hasHeader="true" addCaption="Add Workspace Volume"
+                                          deleteCaption="Delete Workspace Volume" />
+          </f:entry>
+        </f:optionalBlock>
+      </table>
+    </f:block>
   </f:advanced>
 
 </j:jelly>

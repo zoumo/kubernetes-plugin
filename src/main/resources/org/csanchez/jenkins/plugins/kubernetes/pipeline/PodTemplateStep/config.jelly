@@ -5,7 +5,7 @@
     <f:entry field="cloud" title="The cloud to use">
       <f:textbox default="kubernetes"/>
     </f:entry>
-    <f:entry field="inheritFrom" title="The name of the pod inheritFrom to use">
+    <f:entry field="inheritFrom" title="The name of the pod template to inherit from">
       <f:textbox/>
     </f:entry>
 	<f:entry field="name" title="The name of the template">
@@ -25,7 +25,15 @@
                                 deleteCaption="Delete Volume" />
   </f:entry>
 
+  <f:entry title="${%Annotations}" description="${%List of annotations to add to the pod metadata}" field="annotations">
+    <f:repeatableHeteroProperty field="annotations" hasHeader="true" addCaption="Add Annotation"
+                                deleteCaption="Delete Annotation" />
+  </f:entry>
+
 	<f:advanced>
+        <f:entry field="instanceCap" title="${%Max number of instances}">
+          <f:textbox default="0"/>
+        </f:entry>
 		<f:entry field="serviceAccount" title="The service account">
           <f:textbox/>
         </f:entry>
@@ -35,5 +43,15 @@
         <f:entry field="workingDir" title="${%Working directory}">
           <f:textbox default="/home/jenkins"/>
         </f:entry>
+        <f:block>
+          <table>
+            <f:optionalBlock title="${%Use custom workspace volume}" checked="${instance.workspaceVolume != null}" inline="true">
+              <f:entry title="${%Workspace Volume}" description="${%Volume to use for sharing the workspace}">
+                <f:dropdownDescriptorSelector field="workspaceVolume" oneEach="true" hasHeader="true" addCaption="Add Workspace Volume"
+                                              deleteCaption="Delete Workspace Volume" />
+              </f:entry>
+            </f:optionalBlock>
+          </table>
+        </f:block>
 	</f:advanced>
 </j:jelly>

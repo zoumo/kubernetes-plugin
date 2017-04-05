@@ -28,12 +28,15 @@ import static org.junit.Assert.*;
 import static org.csanchez.jenkins.plugins.kubernetes.KubernetesTestUtil.*;
 
 import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.logging.Level;
 
+import org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate;
 import org.csanchez.jenkins.plugins.kubernetes.KubernetesCloud;
+import org.csanchez.jenkins.plugins.kubernetes.PodTemplate;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
@@ -55,14 +58,17 @@ import hudson.model.Node;
 import hudson.slaves.DumbSlave;
 import hudson.slaves.NodeProperty;
 import hudson.slaves.RetentionStrategy;
+import io.fabric8.kubernetes.api.model.Namespace;
+import io.fabric8.kubernetes.api.model.NamespaceBuilder;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import jenkins.model.JenkinsLocationConfiguration;
 
 /**
  * @author Carlos Sanchez
- * @since
- *
  */
 public class KubernetesPipelineTest {
+
+    private static final String TESTING_NAMESPACE = "kubernetes-plugin-test";
 
     @ClassRule
     public static BuildWatcher buildWatcher = new BuildWatcher();
@@ -77,16 +83,27 @@ public class KubernetesPipelineTest {
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
 
-    private static KubernetesCloud cloud = new KubernetesCloud("kubernetes");
+    private static KubernetesCloud cloud = new KubernetesCloud("minikube");
 
     @BeforeClass
     public static void configureCloud() throws Exception {
         // do not run if minikube is not running
         assumeMiniKube();
 
-        cloud.setServerUrl(new URL("https", miniKubeIp(), 8443, "").toExternalForm());
-        cloud.setNamespace("default");
-        cloud.connect();
+        cloud.setServerUrl(miniKubeUrl().toExternalForm());
+        cloud.setNamespace(TESTING_NAMESPACE);
+        KubernetesClient client = cloud.connect();
+        // Run in our own testing namespace
+        client.namespaces().createOrReplace(
+                new NamespaceBuilder().withNewMetadata().withName(TESTING_NAMESPACE).endMetadata().build());
+
+        // Create a busybox template
+        PodTemplate busyboxTemplate = new PodTemplate();
+        busyboxTemplate.setLabel("busybox");
+        ContainerTemplate busybox = new ContainerTemplate("busybox", "busybox", "cat", "");
+        busybox.setTtyEnabled(true);
+        busyboxTemplate.getContainers().add(busybox);
+        cloud.addTemplate(busyboxTemplate);
     }
 
     // @Test
@@ -103,9 +120,7 @@ public class KubernetesPipelineTest {
     // });
     // }
 
-    @Test
-    public void runInPod() throws Exception {
-
+    private void configureCloud(JenkinsRuleNonLocalhost r) throws Exception {
         // Slaves running in Kubernetes (minikube) need to connect to this server, so localhost does not work
         URL url = r.getURL();
         URL nonLocalhostUrl = new URL(url.getProtocol(), InetAddress.getLocalHost().getHostAddress(), url.getPort(),
@@ -113,25 +128,29 @@ public class KubernetesPipelineTest {
         JenkinsLocationConfiguration.get().setUrl(nonLocalhostUrl.toString());
 
         r.jenkins.clouds.add(cloud);
+    }
 
+    @Test
+    public void runInPod() throws Exception {
+        configureCloud(r);
         WorkflowJob p = r.jenkins.createProject(WorkflowJob.class, "p");
         p.setDefinition(new CpsFlowDefinition("" //
-                + "podTemplate(label: 'mypod', volumes: [emptyDirVolume(mountPath: '/my-mount')], containers: [\n" //
+                + "podTemplate(cloud: 'minikube', label: 'mypod', volumes: [emptyDirVolume(mountPath: '/my-mount')], containers: [\n" //
                 + "        containerTemplate(name: 'jnlp', image: 'jenkinsci/jnlp-slave:2.62-alpine', args: '${computer.jnlpmac} ${computer.name}'),\n" //
                 + "        containerTemplate(name: 'maven', image: 'maven:3.3.9-jdk-8-alpine', ttyEnabled: true, command: 'cat'),\n" //
                 + "        containerTemplate(name: 'golang', image: 'golang:1.6.3-alpine', ttyEnabled: true, command: 'cat')\n" //
                 + "    ]) {\n" //
                 + "\n" //
                 + "    node ('mypod') {\n" //
-                + "    sh \"echo My Kubernetes Pipeline\" \n" //
-                + "    sh \"ls /\" \n" //
-                // + " stage 'Get a Maven project'\n" //
-                // + " git 'https://github.com/jenkinsci/kubernetes-plugin.git'\n" //
-                // + " container('maven') {\n" //
-                // + " stage 'Build a Maven project'\n" //
-                // + " sh 'mvn clean install'\n" //
-                // + " }\n" //
-                // + "\n" //
+                + "      sh \"echo My Kubernetes Pipeline\" \n" //
+                + "      sh \"ls /\" \n" //
+                + "\n" //
+                + "      stage('Run maven') {\n" //
+                + "        container('maven') {\n" //
+                + "          sh 'mvn -version'\n" //
+                + "        }\n" //
+                + "      }\n" //
+                + "\n" //
                 // + " stage 'Get a Golang project'\n" //
                 // + " git url: 'https://github.com/hashicorp/terraform.git'\n" //
                 // + " container('golang') {\n" //
@@ -151,6 +170,88 @@ public class KubernetesPipelineTest {
         r.assertBuildStatusSuccess(r.waitForCompletion(b));
         r.assertLogContains("My Kubernetes Pipeline", b);
         r.assertLogContains("my-mount", b);
+        r.assertLogContains("Apache Maven 3.3.9", b);
+    }
+
+    @Test
+    public void runInPodWithExistingTemplate() throws Exception {
+        configureCloud(r);
+        WorkflowJob p = r.jenkins.createProject(WorkflowJob.class, "p");
+        p.setDefinition(new CpsFlowDefinition("" //
+                + "    node ('busybox') {\n" //
+                + "      sh 'echo outside container'\n" //
+                + "\n" //
+                + "      stage('Run busybox') {\n" //
+                + "        container('busybox') {\n" //
+                + "          sh 'echo inside container'\n" //
+                + "        }\n" //
+                + "      }\n" //
+                + "    }\n" //
+                , true));
+        WorkflowRun b = p.scheduleBuild2(0).waitForStart();
+        assertNotNull(b);
+        r.assertBuildStatusSuccess(r.waitForCompletion(b));
+        r.assertLogContains("outside container", b);
+        r.assertLogContains("inside container", b);
+    }
+
+    @Test
+    public void runJobWithSpaces() throws Exception {
+        configureCloud(r);
+        WorkflowJob p = r.jenkins.createProject(WorkflowJob.class, "p with spaces");
+        p.setDefinition(new CpsFlowDefinition("" //
+                + "podTemplate(cloud: 'minikube', label: 'mypod', containers: [\n" //
+                + "        containerTemplate(name: 'busybox', image: 'busybox', ttyEnabled: true, command: '/bin/cat'),\n" //
+                + "    ]) {\n" //
+                + "\n" //
+                + "    node ('mypod') {\n" //
+                + "      stage('Run') {\n" //
+                + "        container('busybox') {\n" //
+                + "          sh 'echo \"pwd is -$(pwd)-\"'\n" //
+                + "        }\n" //
+                + "      }\n" //
+                + "\n" //
+                + "    }\n" //
+                + "}\n" //
+                , true));
+        WorkflowRun b = p.scheduleBuild2(0).waitForStart();
+        assertNotNull(b);
+        r.assertBuildStatusSuccess(r.waitForCompletion(b));
+        r.assertLogContains("pwd is -/home/jenkins/workspace/p with spaces-", b);
+    }
+
+    @Test
+    public void runDirContext() throws Exception {
+        configureCloud(r);
+        WorkflowJob p = r.jenkins.createProject(WorkflowJob.class, "job with dir");
+        p.setDefinition(new CpsFlowDefinition("" //
+                + "podTemplate(cloud: 'minikube', label: 'mypod', containers: [\n" //
+                + "        containerTemplate(name: 'busybox', image: 'busybox', ttyEnabled: true, command: '/bin/cat'),\n" //
+                + "    ]) {\n" //
+                + "\n" //
+                + "    node ('mypod') {\n" //
+                + "      stage('Run') {\n" //
+                + "        container('busybox') {\n" //
+                + "          sh 'mkdir hz'\n" //
+                + "          sh 'echo \"initpwd is -$(pwd)-\"'\n" //
+                + "          dir('hz') {\n" //
+                + "             sh 'echo \"dirpwd is -$(pwd)-\"'\n" //
+                + "          }\n" //
+                + "          sh 'echo \"postpwd is -$(pwd)-\"'\n" //
+                + "        }\n" //
+                + "      }\n" //
+                + "\n" //
+                + "    }\n" //
+                + "}\n" //
+                , true));
+        WorkflowRun b = p.scheduleBuild2(0).waitForStart();
+        assertNotNull(b);
+        r.assertBuildStatusSuccess(r.waitForCompletion(b));
+        String workspace = "/home/jenkins/workspace/job with dir";
+        r.assertLogContains("initpwd is -" + workspace + "-", b);
+        r.assertLogContains("dirpwd is -" + workspace + "/hz-", b);
+        r.assertLogContains("postpwd is -" + workspace + "-", b);
+
     }
 
     // @Test
@@ -162,7 +263,7 @@ public class KubernetesPipelineTest {
 
                 story.j.jenkins.addNode(new DumbSlave("slave", "dummy", tmp.newFolder("remoteFS").getPath(), "1",
                         Node.Mode.NORMAL, "", story.j.createComputerLauncher(null), RetentionStrategy.NOOP,
-                        Collections.<NodeProperty<?>> emptyList())); // TODO JENKINS-26398 clumsy
+                        Collections.<NodeProperty<?>>emptyList())); // TODO JENKINS-26398 clumsy
                 WorkflowJob p = story.j.jenkins.createProject(WorkflowJob.class, "p");
                 p.setDefinition(new CpsFlowDefinition("" //
                         + "node('slave') {\n" //
@@ -194,7 +295,7 @@ public class KubernetesPipelineTest {
                         + "    }" //
                         + "  }" //
                         + "}" //
-                , true));
+                        , true));
                 WorkflowRun b = p.scheduleBuild2(0).waitForStart();
                 SemaphoreStep.waitForStart("withDisplayAfterRestart/1", b);
             }

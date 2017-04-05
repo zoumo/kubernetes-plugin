@@ -16,14 +16,19 @@
 
 package org.csanchez.jenkins.plugins.kubernetes.pipeline;
 
-import com.squareup.okhttp.Response;
 import hudson.Launcher;
 import hudson.LauncherDecorator;
 import hudson.Proc;
 import hudson.model.Node;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
+import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import io.fabric8.kubernetes.client.Watch;
+import io.fabric8.kubernetes.client.Watcher;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
+import okhttp3.Response;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -44,13 +50,14 @@ import static org.csanchez.jenkins.plugins.kubernetes.pipeline.Constants.*;
 public class ContainerExecDecorator extends LauncherDecorator implements Serializable, Closeable {
 
     private static final long serialVersionUID = 4419929753433397655L;
-
+    private static final long DEFAULT_CONTAINER_READY_TIMEOUT = 5;
+    private static final String CONTAINER_READY_TIMEOUT_SYSTEM_PROPERTY = ContainerExecDecorator.class.getName() + ".containerReadyTimeout";
+    private static final long CONTAINER_READY_TIMEOUT = containerReadyTimeout();
     private static final Logger LOGGER = Logger.getLogger(ContainerExecDecorator.class.getName());
 
     private final transient KubernetesClient client;
     private final String podName;
     private final String containerName;
-    private final String path;
     private final AtomicBoolean alive;
 
     private transient CountDownLatch started;
@@ -59,14 +66,18 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
     private transient ExecWatch watch;
     private transient ContainerExecProc proc;
 
-    public ContainerExecDecorator(KubernetesClient client, String podName, String containerName, String path, AtomicBoolean alive, CountDownLatch started, CountDownLatch finished) {
+    public ContainerExecDecorator(KubernetesClient client, String podName, String containerName, AtomicBoolean alive, CountDownLatch started, CountDownLatch finished) {
         this.client = client;
         this.podName = podName;
         this.containerName = containerName;
-        this.path = path;
         this.alive = alive;
         this.started = started;
         this.finished = finished;
+    }
+
+    @Deprecated
+    public ContainerExecDecorator(KubernetesClient client, String podName, String containerName, String path, AtomicBoolean alive, CountDownLatch started, CountDownLatch finished) {
+        this(client, podName, containerName, alive, started, finished);
     }
 
     @Override
@@ -74,6 +85,11 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
         return new Launcher.DecoratedLauncher(launcher) {
             @Override
             public Proc launch(ProcStarter starter) throws IOException {
+                if (!waitUntilContainerIsReady()) {
+                    throw new IOException("Failed to execute shell script inside container " +
+                            "[" + containerName + "] of pod [" + podName + "]." +
+                            " Timed out waiting for container to become ready!");
+                }
                 launcher.getListener().getLogger().println("Executing shell script inside container [" + containerName + "] of pod [" + podName + "]");
                 watch = client.pods().withName(podName)
                         .inContainer(containerName)
@@ -87,10 +103,11 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
                                 alive.set(true);
                                 started.countDown();
                             }
+
                             @Override
-                            public void onFailure(IOException e, Response response) {
+                            public void onFailure(Throwable t, Response response) {
                                 alive.set(false);
-                                e.printStackTrace(launcher.getListener().getLogger());
+                                t.printStackTrace(launcher.getListener().getLogger());
                                 started.countDown();
                                 finished.countDown();
                             }
@@ -107,7 +124,7 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
 
                 //We need to get into the project workspace.
                 //The workspace is not known in advance, so we have to execute a cd command.
-                watch.getInput().write(("cd " + path + NEWLINE).getBytes(StandardCharsets.UTF_8));
+                watch.getInput().write(String.format("cd \"%s\"%s", starter.pwd(), NEWLINE).getBytes(StandardCharsets.UTF_8));
                 doExec(watch, launcher.getListener().getLogger(), getCommands(starter));
                 proc = new ContainerExecProc(watch, alive, finished);
                 return proc;
@@ -117,6 +134,61 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
             public void kill(Map<String, String> modelEnvVars) throws IOException, InterruptedException {
                 getListener().getLogger().println("Killing process.");
                 ContainerExecDecorator.this.close();
+            }
+
+
+            private boolean isContainerReady(Pod pod, String container) {
+                if (pod == null || pod.getStatus() == null || pod.getStatus().getContainerStatuses() == null) {
+                    return false;
+                }
+
+                for (ContainerStatus info : pod.getStatus().getContainerStatuses()) {
+                    if (info.getName().equals(container) && info.getReady()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            private boolean waitUntilContainerIsReady() {
+                Pod pod = client.pods().withName(podName).get();
+
+                if (pod == null) {
+                    throw new IllegalArgumentException("Container with name:[" + containerName + "] not found in pod:[" + podName + "]");
+                }
+                if (isContainerReady(pod, containerName)) {
+                    return true;
+                }
+
+                launcher.getListener().getLogger().println("Waiting for container container [" + containerName + "] of pod [" + podName + "] to become ready.");
+                final CountDownLatch latch = new CountDownLatch(1);
+                Watcher<Pod> podWatcher = new Watcher<Pod>() {
+                    @Override
+                    public void eventReceived(Action action, Pod resource) {
+                        switch (action) {
+                            case MODIFIED:
+                                if (isContainerReady(resource, containerName)) {
+                                    latch.countDown();
+                                }
+                                break;
+                            default:
+                        }
+                    }
+
+                    @Override
+                    public void onClose(KubernetesClientException cause) {
+
+                    }
+                };
+
+                try (Watch watch = client.pods().withName(podName).watch(podWatcher)) {
+                    if (latch.await(CONTAINER_READY_TIMEOUT, TimeUnit.MINUTES)) {
+                        return true;
+                    }
+                } catch (InterruptedException e) {
+                    return false;
+                }
+                return false;
             }
         };
     }
@@ -182,6 +254,15 @@ public class ContainerExecDecorator extends LauncherDecorator implements Seriali
             latch.await();
         } catch (InterruptedException e) {
             //ignore
+        }
+    }
+
+    private static Long containerReadyTimeout() {
+        String timeout = System.getProperty(CONTAINER_READY_TIMEOUT_SYSTEM_PROPERTY, String.valueOf(DEFAULT_CONTAINER_READY_TIMEOUT));
+        try {
+            return Long.parseLong(timeout);
+        } catch (NumberFormatException e) {
+            return DEFAULT_CONTAINER_READY_TIMEOUT;
         }
     }
 }

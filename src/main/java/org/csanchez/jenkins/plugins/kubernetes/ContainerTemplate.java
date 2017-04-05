@@ -11,9 +11,12 @@ import org.kohsuke.stapler.DataBoundSetter;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class ContainerTemplate extends AbstractDescribableImpl<ContainerTemplate> implements Serializable {
+
+    private static final long serialVersionUID = 4212681620316294146L;
 
     public static final String DEFAULT_WORKING_DIR = "/home/jenkins";
 
@@ -43,15 +46,24 @@ public class ContainerTemplate extends AbstractDescribableImpl<ContainerTemplate
 
     private final List<ContainerEnvVar> envVars = new ArrayList<ContainerEnvVar>();
 
-    @DataBoundConstructor
+    @Deprecated
     public ContainerTemplate(String image) {
         this(null, image);
     }
 
-    ContainerTemplate(String name, String image) {
+    @DataBoundConstructor
+    public ContainerTemplate(String name, String image) {
         Preconditions.checkArgument(!StringUtils.isBlank(image));
         this.name = name;
         this.image = image;
+    }
+
+    public ContainerTemplate(String name, String image, String command, String args) {
+        Preconditions.checkArgument(!StringUtils.isBlank(image));
+        this.name = name;
+        this.image = image;
+        this.command = command;
+        this.args = args;
     }
 
     @DataBoundSetter
@@ -131,7 +143,7 @@ public class ContainerTemplate extends AbstractDescribableImpl<ContainerTemplate
     }
 
     public List<ContainerEnvVar> getEnvVars() {
-        return envVars;
+        return envVars != null ? envVars : Collections.emptyList();
     }
 
     @DataBoundSetter
