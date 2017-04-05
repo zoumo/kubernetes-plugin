@@ -1,6 +1,7 @@
 FROM jenkins:2.32.3-alpine
 
 USER root
+
 WORKDIR /var/jenkins_home
 
 
@@ -22,5 +23,6 @@ RUN install-plugins.sh /var/jenkins_home/kubernetes.hpi \
                        ant \
                        ldap \
                        email-ext
+
 
 COPY src/main/docker/master-executors.groovy /usr/share/jenkins/ref/init.groovy.d/

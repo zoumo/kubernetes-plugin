@@ -675,6 +675,7 @@ public class KubernetesCloud extends Cloud {
             KubernetesSlave slave = null;
             RetentionStrategy retentionStrategy = null;
             try {
+
                 if (t.getIdleMinutes() == 0) {
                     retentionStrategy = new OnceRetentionStrategy(cloud.getRetentionTimeout());
                 } else {
@@ -684,6 +685,7 @@ public class KubernetesCloud extends Cloud {
                 slave = new KubernetesSlave(t, t.getName(), cloud.name, t.getLabel(), retentionStrategy);
                 LOGGER.log(Level.FINER, "Adding Jenkins node: {0}", slave.getNodeName());
                 LOGGER.log(Level.INFO, "new kubernetes slave {0}", slave.getDescription());
+
                 Jenkins.getActiveInstance().addNode(slave);
                 Pod pod = getPodTemplate(slave, label);
                 // Why the hell doesn't createPod return a Pod object ?
