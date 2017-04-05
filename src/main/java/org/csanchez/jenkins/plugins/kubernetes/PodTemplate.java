@@ -53,8 +53,6 @@ public class PodTemplate extends AbstractDescribableImpl<PodTemplate> implements
 
     private String image;
     
-    private boolean alive = false;
-
     private boolean privileged;
 
     private boolean alwaysPullImage;

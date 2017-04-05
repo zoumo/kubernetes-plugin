@@ -680,10 +680,11 @@ public class KubernetesCloud extends Cloud {
                 } else {
                     retentionStrategy = new CloudRetentionStrategy(t.getIdleMinutes());
                 }
+                LOGGER.log(Level.INFO, "use potTemplate {0}", t.toString());
                 slave = new KubernetesSlave(t, t.getName(), cloud.name, t.getLabel(), retentionStrategy);
                 LOGGER.log(Level.FINER, "Adding Jenkins node: {0}", slave.getNodeName());
+                LOGGER.log(Level.INFO, "new kubernetes slave {0}", slave.getDescription());
                 Jenkins.getActiveInstance().addNode(slave);
-
                 Pod pod = getPodTemplate(slave, label);
                 // Why the hell doesn't createPod return a Pod object ?
                 pod = connect().pods().create(pod);
